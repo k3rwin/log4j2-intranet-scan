@@ -70,7 +70,7 @@ JNDIScan-Windows.exe -p 8888
 
 ```shell
 $ python3 log4j2-intranet-scan.py -h
-usage: log4j2-intranet-scan.py [-h] [-u URL] [-p PROXY] [-l USEDLIST] [--request-type REQUEST_TYPE]
+usage: log4j2-intranet-scan.py [-h] [-u URL] [-c CRAW] [-p PROXY] [-l USEDLIST] [--request-type REQUEST_TYPE]
                                [--headers-file HEADERS_FILE] [--run-all-tests] [--exclude-user-agent-fuzzing]
                                [--wait-time WAIT_TIME] [--waf-bypass] [--test-CVE-2021-45046] [--server SERVER]
                                [--disable-http-redirects]
@@ -78,6 +78,8 @@ usage: log4j2-intranet-scan.py [-h] [-u URL] [-p PROXY] [-l USEDLIST] [--request
 optional arguments:
   -h, --help            show this help message and exit
   -u URL, --url URL     Check a single URL. example('http://vultest.com/test.jsp')
+  -c CRAW, --crawler CRAW
+                        use crawler,any values,like 1
   -p PROXY, --proxy PROXY
                         send requests through proxy
   -l USEDLIST, --list USEDLIST
@@ -100,11 +102,33 @@ optional arguments:
                         higher chance of reaching vulnerable systems.
 ```
 
-### Scan a Single URL(GET)
+### Scan a Single URL
 
 ```shell
-$ python3 log4j2-intranet-scan.py --server "192.168.130.1:8888" -u https://vultest.com/login.jsp
+$ python3 log4j2-intranet-scan.py --server "192.168.130.1:8888" -u "https://vultest.com/login.jsp" --run-all-tests --crawler
 ```
+
+>--server 指定ldap服务地址
+>
+>-u 指定扫描url
+>
+>--run-all-tests 使用get、post、json三种方式进行探测
+>
+>-c  使用crawler进行子页面爬取，爬取深度为2层，
+
+### Scan a list of URLs
+
+```shell
+$ python3  log4j2-intranet-scan.py --server "192.168.130.1:8888" -l "urls.txt" --run-all-tests --crawler
+```
+
+> --server 指定ldap服务地址
+>
+> -l 指定扫描url文件
+>
+> --run-all-tests 使用get、post、json三种方式进行探测
+>
+> --crawler  使用crawler进行子页面爬取，爬取深度为2层，
 
 ### Scan a Single URL using all Request Methods: GET, POST (url-encoded form), POST (JSON body)
 
@@ -118,14 +142,6 @@ $ python3 log4j2-intranet-scan.py --server "192.168.130.1:8888" -u https://vulte
 ```shell
 $ python3 log4j2-intranet-scan.py --server "192.168.130.1:8888" -u https://vultest.com/login.jsp --waf-bypass
 ```
-
-### Scan a list of URLs
-
-```shell
-$ python3  log4j2-intranet-scan.py --server "192.168.130.1:8888" -l urls.txt
-```
-
----
 
 ## 5.Example(演示)
 

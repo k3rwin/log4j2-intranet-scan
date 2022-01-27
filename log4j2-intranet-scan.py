@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # coding=utf-8
-
-
 import argparse
 import random
 import requests
@@ -10,6 +8,8 @@ from urllib import parse as urlparse
 import random
 from colorama import Fore
 from tqdm import tqdm
+import re
+from threading import Thread
 
 # Disable SSL warnings
 try:
@@ -61,6 +61,10 @@ parser.add_argument("-u", "--url",
                     dest="url",
                     help="Check a single URL. example('http://vultest.com/test.jsp')",
                     action='store')
+parser.add_argument("--crawler",
+                    dest="craw",
+                    help="use crawler, two-layer",
+                    action='store_true')
 parser.add_argument("-p", "--proxy",
                     dest="proxy",
                     help="send requests through proxy",
@@ -116,6 +120,40 @@ args = parser.parse_args()
 proxies = {}
 if args.proxy:
     proxies = {"http": args.proxy, "https": args.proxy}
+
+
+def crawler(url):
+    # 不需要的静态资源
+    NoNeed = a=['GIF', 'PNG', 'BMP', 'JPEG', 'JPG', 'MP3', 'WMA', 'FLV', 'MP4', 'WMV', 'OGG', 'AVI', 'DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'TXT', 'PDF', 'ZIP', 'EXE', 'TAT', 'ICO', 'CSS', 'JS', 'SWF', 'APK', 'M3U8', 'TS']
+    urls = []
+    if url not in urls:
+        urls.append(url)
+    site = re.findall(r'\/\/([0-9a-zA-Z\.]*)[:\/]',url)[0]
+    url1 = urlparse.urlparse(url)
+    path = url1.path
+    if "." in url1.path:
+        path = '/'.join((url1.path.split('/'))[:-1]) + '/'
+        
+    url2 = url1.scheme + '://' + url1.netloc + path
+    req = requests.get(url, headers=default_headers)
+    html = req.text
+    com = re.findall(r'(?<=href=")[^\"]+', html)
+    for u in com:
+        suffix = u.split('.')[-1].upper()
+        if suffix in NoNeed:
+            continue
+        elif "#" in u:
+            continue
+        else:
+            if "http" not in u:
+                if "/" in u:
+                    u = url2 + u
+                else:
+                    u = url2 + "/" + u 
+            if site in u and u not in urls:
+                urls.append(u)
+    return urls
+
 
 def get_fuzzing_headers(payload):
     fuzzing_headers = {}
@@ -173,7 +211,8 @@ def parse_url(url):
     # FilePath: /login.jsp
     file_path = urlparse.urlparse(url).path
     if (file_path == ''):
-        file_path = '/'
+        # file_path = '/'
+        pass
 
     return({"scheme": scheme,
             "site": f"{scheme}://{urlparse.urlparse(url).netloc}",
@@ -204,7 +243,8 @@ def scan_url(url, server, scan_log):
                                  allow_redirects=(not args.disable_redirects),
                                  proxies=proxies)
             except Exception as e:
-                print(f"EXCEPTION: {e}")            
+                print(f"EXCEPTION: {e}")
+                print(f"fail to scan url:{url}")            
 
         if args.request_type.upper() == "POST" or args.run_all_tests:
             try:
@@ -219,6 +259,7 @@ def scan_url(url, server, scan_log):
                                  proxies=proxies)
             except Exception as e:
                 print(f"EXCEPTION: {e}")
+                print(f"fail to scan url:{url}")       
 
             try:
                 # JSON body
@@ -232,6 +273,7 @@ def scan_url(url, server, scan_log):
                                  proxies=proxies)
             except Exception as e:
                 print(f"EXCEPTION: {e}")
+                print(f"fail to scan url:{url}")       
 
 def main():
     title()
@@ -240,21 +282,63 @@ def main():
         exit(0)
     scan_log = []
     urls = []
+    urls_l = []
+    urls_s = []
+    threads_craw = []
+    threads_scan = []
     if args.url:
-        urls.append(args.url)
+        if args.craw:
+            urls = crawler(args.url)
+            for url in urls:
+                threads_craw.append(Thread(target=crawler, args=(url,)))
+                threads_craw[-1].start()
+            for thread1 in threads_craw:
+                thread1.join()
+        else:
+            urls.append(args.url)
+        
     if args.usedlist:
         with open(args.usedlist, "r") as f:
             for i in f.readlines():
                 i = i.strip()
                 if i == "" or i.startswith("#"):
                     continue
-                urls.append(i)
-
+                if args.craw:
+                    urls=crawler(i)
+                    urls_l.append(urls)
+                else:
+                    urls.append(i)
+        if args.craw:        
+            for urls in urls_l:
+                for url in urls:
+                    threads_craw.append(Thread(target=crawler, args=(url,)))
+                    threads_craw[-1].start()
+            for thread1 in threads_craw:
+                thread1.join()
+    
+    
     ldap_server = args.server
 
     print(Fore.RED + "[%] Checking for Log4j RCE CVE-2021-44228." + Fore.RESET)
-    for url in tqdm(urls, position=0):
-        scan_url(url, ldap_server, scan_log)
+    
+    if not urls_l:
+        for url in urls:
+            threads_scan.append(Thread(target=scan_url, args=(url, ldap_server, scan_log,)))
+            threads_scan[-1].start()
+        for thread2 in tqdm(threads_scan, position=0):
+            thread2.join()
+            #scan_url(url, ldap_server, scan_log)
+
+    else:
+        for urls in urls_l:
+            for url in urls:
+                urls_s.append(url)
+        for url in urls_s:
+            threads_scan.append(Thread(target=scan_url, args=(url, ldap_server, scan_log,)))
+            threads_scan[-1].start()
+        for thread2 in tqdm(threads_scan, position=0):
+            thread2.join()
+            #scan_url(url, ldap_server, scan_log)       
     with open('scanfile.txt','w+') as f:
         for x in scan_log:
             f.write(x)
