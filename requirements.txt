@@ -1,5 +1,4 @@
 requests
-urllib
 tqdm
 colorama
 argparse
