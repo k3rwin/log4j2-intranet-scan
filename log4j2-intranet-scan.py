@@ -123,36 +123,39 @@ if args.proxy:
 
 
 def crawler(url):
-    # 不需要的静态资源
-    NoNeed = a=['GIF', 'PNG', 'BMP', 'JPEG', 'JPG', 'MP3', 'WMA', 'FLV', 'MP4', 'WMV', 'OGG', 'AVI', 'DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'TXT', 'PDF', 'ZIP', 'EXE', 'TAT', 'ICO', 'CSS', 'JS', 'SWF', 'APK', 'M3U8', 'TS']
-    urls = []
-    if url not in urls:
-        urls.append(url)
-    site = re.findall(r'\/\/([0-9a-zA-Z\.]*)[:\/]',url)[0]
-    url1 = urlparse.urlparse(url)
-    path = url1.path
-    if "." in url1.path:
-        path = '/'.join((url1.path.split('/'))[:-1]) + '/'
-        
-    url2 = url1.scheme + '://' + url1.netloc + path
-    req = requests.get(url, headers=default_headers)
-    html = req.text
-    com = re.findall(r'(?<=href=")[^\"]+', html)
-    for u in com:
-        suffix = u.split('.')[-1].upper()
-        if suffix in NoNeed:
-            continue
-        elif "#" in u:
-            continue
-        else:
-            if "http" not in u:
-                if "/" in u:
-                    u = url2 + u
-                else:
-                    u = url2 + "/" + u 
-            if site in u and u not in urls:
-                urls.append(u)
-    return urls
+    try:
+        # 不需要的静态资源
+        NoNeed = a=['GIF', 'PNG', 'BMP', 'JPEG', 'JPG', 'MP3', 'WMA', 'FLV', 'MP4', 'WMV', 'OGG', 'AVI', 'DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'TXT', 'PDF', 'ZIP', 'EXE', 'TAT', 'ICO', 'CSS', 'JS', 'SWF', 'APK', 'M3U8', 'TS']
+        urls = []
+        if url not in urls:
+            urls.append(url)
+        site = re.findall(r'\/\/([0-9a-zA-Z\.]*)[:\/]',url)[0]
+        url1 = urlparse.urlparse(url)
+        path = url1.path
+        if "." in url1.path:
+            path = '/'.join((url1.path.split('/'))[:-1]) + '/'
+            
+        url2 = url1.scheme + '://' + url1.netloc + path
+        req = requests.get(url, headers=default_headers)
+        html = req.text
+        com = re.findall(r'(?<=href=")[^\"]+', html)
+        for u in com:
+            suffix = u.split('.')[-1].upper()
+            if suffix in NoNeed:
+                continue
+            elif "#" in u:
+                continue
+            else:
+                if "http" not in u:
+                    if "/" in u:
+                        u = url2 + u
+                    else:
+                        u = url2 + "/" + u 
+                if site in u and u not in urls:
+                    urls.append(u)
+        return urls
+    except:
+        return urls
 
 
 def get_fuzzing_headers(payload):
@@ -289,11 +292,12 @@ def main():
     if args.url:
         if args.craw:
             urls = crawler(args.url)
-            for url in urls:
-                threads_craw.append(Thread(target=crawler, args=(url,)))
-                threads_craw[-1].start()
-            for thread1 in threads_craw:
-                thread1.join()
+            if len(urls) > 1 :
+                for url in urls:
+                    threads_craw.append(Thread(target=crawler, args=(url,)))
+                    threads_craw[-1].start()
+                for thread1 in threads_craw:
+                    thread1.join()
         else:
             urls.append(args.url)
         
